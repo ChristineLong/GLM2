@@ -1,0 +1,116 @@
+---
+title: "Retro studies"
+author: "Yuelin Long"
+date: "February 24, 2019"
+output: html_document
+---
+```{r}
+library(tidyverse)
+```
+
+
+#Problem 1
+```{r}
+#Input data
+x1 = c(seq(25,75,10),seq(25,75,10))   #Set x1 as age. Use lower limit as the continous variable
+x2 = c(rep(0,length(x1)/2),rep(1,length(x1)/2)) #Assume Daily Alcohol Consumption Control Daily Alcohol Consumption 0-79 g to be 0
+y = c(0,5,21,34,36,8,1,4,25,42,19,5)
+m_y = c(106,164,138,139,88,31,9,26,29,27,18,0)
+m = y + m_y
+resp = cbind(y, m_y)
+
+#Build prospective model for retrospective study
+logit.prosp=glm(resp~x1+x2, family=binomial(link='logit'))
+summary(logit.prosp)
+```
+
+###Question 1
+
+Intepretation:
+
++ The coefficient of x1 (b1): Given the daily alcohol consumption fixed, 1 year increase in age would lead to the log odds of getting esophageal cancer to increase by 0.061579;
++ The coefficient of x2 (b2): Given the age fixed, the log odds ratio of daily alcohol consumption of more than 80 g would be 1.780000 between case and control groups;
++ The intercept does not have any meaning because this is a retrospective study under a prospective model.
+
+
+
+#Problem 2
+```{r}
+#Input data
+x1 = c(rep(0,11),rep(1,10))  # Set x1 to be the species of seed. O. aegyptiaca 75 as 0 and O. aegyptiaca 73 as 1
+x2 = c(rep(1,5),rep(0,6),rep(1,5),rep(0,5))  # Set x2 to be the root extract media (cucumber or bean). Bean as 1 and cucumber as 0.
+y = c(10,23,23,26,17,5,53,55,32,46,10,8,10,8,23,0,3,22,15,32,3)
+m = c(39,62,81,51,39,6,74,72,51,79,13,16,30,28,45,4,12,41,30,51,7)
+resp = cbind(y,m - y)
+
+#Build logistic regression model
+logit_p2=glm(resp~x1+x2, family=binomial(link='logit'))
+summary(logit_p2)
+```
+
+###Question 1
+
+Intepretation:
+
++ The coefficient of x1 (b1): Given the root extract media fixed,  for aegyptiaca 73 seed, the log odds ratio between germination and non-germination seeds is -0.2705;
++ The coefficient of x2 (b2): Given the seed species fixed, for bean root extract media, the log odds ratio between germination and non-germination seeds is -1.0647;
++ The intercept: For aegyptiaca 75 seed and cucumber root extract media, the log odds ratio between germination and non-germination seeds is 0.6347;
+
+
+###Question 2
+```{r}
+#Goodness of fit
+
+#deviance
+res_dev = logit_p2 %>% 
+  broom::glance() %>% 
+  select(deviance) %>% 
+  as.numeric()
+res_dev
+
+
+#Generalized Pearson chi square statistic
+res_pea = sum(residuals(logit_p2, type = "pearson")^2)
+res_pea
+
+#Critical value
+n = 21
+p = 3
+qchisq(0.05,n-p)
+
+pval=1-pchisq(res_dev,df=n-p)
+pval
+```
+
+Both deviance and generalized pearson chi square statistics are far greater than critical value. Therefore, reject the null hypothesis and conclude that the fit is bad. The small p value also confirms it.
+
+Use Half-normal plot to see whether it's overdispersion:
+```{r}
+
+phi=res_pea/(n-p)
+
+plot(qnorm((n+1:n+0.5)/(2*n+1.125)),sort(abs(residuals(logit_p2, type = "pearson"))),xlab='Expected Half-Normal Order Stats',ylab='Ordered Abs Pearson Residuals')
+abline(a=0,b=1)
+abline(a=0,b=sqrt(phi),lty=2)
+
+phi
+```
+
+As we can see in the plot, the slope of our model deviates from the standard line (y=x), therefore there exists over dispersion. And the dispersion parameter is `r phi`.
+
+Refit the model:
+```{r}
+summary(logit_p2,dispersion=phi)
+```
+
+The intepretation remains unchanged, but the standard of error increased.
+
+Intepretation (same as before):
+
++ The coefficient of x1 (b1): Given the root extract media fixed,  for aegyptiaca 73 seed, the log odds ratio between germination and non-germination seeds is -0.2705;
++ The coefficient of x2 (b2): Given the seed species fixed, for bean root extract media, the log odds ratio between germination and non-germination seeds is -1.0647;
++ The intercept: For aegyptiaca 75 seed and cucumber root extract media, the log odds ratio between germination and non-germination seeds is 0.6347;
+
+
+###Question 3
+Over dispersion may caused by intra-class correlation or hierarchical sampling. The correlation between different group is highly unlikely, therefore the over dispersion should be caused by hierarchical sampling.
